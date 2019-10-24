@@ -7,6 +7,12 @@
 struct vec2d {
 	float x, y;
 };
+struct Controls {
+	olc::Key u, d, l, r;
+	Controls(olc::Key up, olc::Key down, olc::Key left, olc::Key right) {
+		u = up; d = down; l = left; r = right;
+	}
+};
 struct Rect {
 	float x, y, w, h;
 	bool active = true;
@@ -21,25 +27,34 @@ struct Rect {
 	}
 
 };
-struct Player {
+
+class Player {
+public:
 	float x, y, r;
+	float prevX = 0;
+	float prevY = 0;
+	//Movement
 	float dx = 0;
 	float dy = 0;
+	//Vision
 	float vx = 0;
-	float vy = 0;
+	float vy = 0; 
+	Controls c = Controls(olc::Key::W, olc::Key::A, olc::Key::S, olc::Key::D);
 	olc::Pixel color;
 	Player() {}
-	Player(float _x, float _y, float _r, olc::Pixel _color = olc::BLUE) {
+	Player(float _x, float _y, float _r, Controls cont, olc::Pixel _color = olc::BLUE) {
 		x = _x;
 		y = _y;
 		r = _r;
 		color = _color;
+		c = cont;
 	}
+
 };
 
 class Engine : public olc::PixelGameEngine{
 public:
-	Player p;
+	Player p, p1;
 	bool pressed = false;
 	bool rounding = true;
 	bool wireframe = false;
@@ -48,6 +63,7 @@ public:
 	bool fullCircle = false;
 	int selected = 0;
 	std::vector<Rect> rects;
+	std::vector<Player> players;
 	float maxSpeed = 150;
 	float moveSpeed = maxSpeed;
 	float stepAngle = 3.14 / 720;
@@ -61,78 +77,23 @@ public:
 		w = ScreenWidth() / 20;
 		h = ScreenHeight() / 20;
 
-		p = Player(20, ScreenHeight()/2, 10);
+		
+		std::cout << olc::Key::W << std::endl;
+
+		players.push_back(Player(20, ScreenHeight() / 2, 10, Controls(olc::Key::W, olc::Key::S, olc::Key::A, olc::Key::D)));
+		//players.push_back(Player(100, ScreenHeight() / 2, 10, Controls(olc::Key::UP, olc::Key::DOWN, olc::Key::LEFT, olc::Key::RIGHT)));
+		
 		rects.push_back(Rect(w*2, h*5, w, h, olc::BLUE));
 		rects.push_back(Rect(w*6, h*10, w, h, olc::BLUE));
 		rects.push_back(Rect(w*3, h*16, w, h, olc::BLUE));
 		rects.push_back(Rect(w*10, h*7, w, h, olc::BLUE));
-
-		vec2d v1, v2, v3, v4;
-		v1.x = 100;
-		v1.y = 248;
-		v2.x = 300;
-		v2.y = 248;
-		v3.x = 100;
-		v3.y = 10;
-		v4.x = 150;
-		v4.y = 10;
-
-		std::cout << isBetween(v3, v1, v2) << std::endl;
-
-		std::cout << Intersect(v1, v2, rects[0]).x << " " << Intersect(v1, v2, rects[0]).y << std::endl;
 
 		return true;
 		
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {
-
-		float prevX = p.x;
-	 	float prevY = p.y;
-		//Input
-		p.dx = p.dy = 0;
-		if (absolute) {
-			if (GetKey(olc::Key::A).bHeld) {
-				p.dx = -moveSpeed * fElapsedTime;
-			}
-			if (GetKey(olc::Key::D).bHeld) {
-				p.dx = moveSpeed * fElapsedTime;
-			}
-			if (GetKey(olc::Key::W).bHeld) {
-				p.dy = -moveSpeed * fElapsedTime;
-			}
-			if (GetKey(olc::Key::S).bHeld) {
-				p.dy = moveSpeed * fElapsedTime;
-			}
-		}
-		else {
-			if (follow) {
-				if (GetKey(olc::Key::W).bHeld) {
-					p.dy = p.vy*moveSpeed * fElapsedTime;
-					p.dx = p.vx*moveSpeed * fElapsedTime;
-				}
-			}
-			else {
-				if (GetKey(olc::Key::W).bHeld) {
-					p.dy = p.vy*moveSpeed * fElapsedTime;
-					p.dx = p.vx*moveSpeed * fElapsedTime;
-				}
-				if (GetKey(olc::Key::S).bHeld) {
-					p.dy = -p.vy*moveSpeed * fElapsedTime;
-					p.dx = -p.vx*moveSpeed * fElapsedTime;
-				}
-				if (GetKey(olc::Key::D).bHeld) {
-					p.vx = p.vx*cos(stepAngle * moveSpeed * 3 * fElapsedTime) - p.vy*sin(stepAngle * moveSpeed * 3 * fElapsedTime);
-					p.vy = p.vy*cos(stepAngle * moveSpeed * 3 * fElapsedTime) + p.vx*sin(stepAngle * moveSpeed * 3 * fElapsedTime);
-				}
-				if (GetKey(olc::Key::A).bHeld) {
-					p.vx = p.vx*cos(-stepAngle * moveSpeed * 3 * fElapsedTime) - p.vy*sin(-stepAngle * moveSpeed * 3 * fElapsedTime);
-					p.vy = p.vy*cos(-stepAngle * moveSpeed * 3 * fElapsedTime) + p.vx*sin(-stepAngle * moveSpeed * 3 * fElapsedTime);
-				}
-			}
-		}
-		p.x += p.dx;
-		p.y += p.dy;
+		Clear(olc::BLACK);
 
 		//Placing blocks
 		if (GetMouse(0).bPressed && !pressed) {
@@ -176,7 +137,94 @@ public:
 			flip(selected);
 		}
 
+		for (int i = 0; i < players.size(); i++) {
+			UpdatePlayer(players[i], fElapsedTime);
+		}
+		for (int i = 0; i < players.size(); i++) {
+			DrawPlayer(players[i]);
+		}
 
+
+		//Draw
+		for (int i = 0; i < rects.size(); i++) {
+			FillRect(rects[i].x, rects[i].y, rects[i].w, rects[i].h, rects[i].color);
+		}
+
+		if (pressed) {
+			FillRect(round((GetMouseX() - w / 2) / w)*w, round((GetMouseY() - h / 2) / h)*h, w, h, olc::BLUE);
+		}
+
+
+
+		//UI
+		DrawString(5, 5,  "WireFrame (E):         " + boolText(wireframe), selected == 0 ? olc::RED : olc::WHITE);
+		DrawString(5, 15, "Snap lines (R):        " + boolText(rounding), selected == 1 ? olc::RED : olc::WHITE);
+		DrawString(5, 25, "Follow mouse (F):      " + boolText(follow), selected == 2 ? olc::RED : olc::WHITE);
+		DrawString(5, 35, "Absolute movement (Q): " + boolText(absolute), selected == 3 ? olc::RED : olc::WHITE);
+		DrawString(5, 45, "Full circle (G):       " + boolText(fullCircle), selected == 4 ? olc::RED : olc::WHITE);
+		return true;
+	}
+
+	
+
+
+	//Player functions
+
+	void UpdatePlayer(Player& p, float fElapsedTime) {
+
+		p.prevX = p.x;
+		p.prevY = p.y;
+		p.dx = p.dy = 0;
+		if (absolute) {
+			if (GetKey(p.c.l).bHeld) {
+				p.dx = -moveSpeed * fElapsedTime;
+			}
+			if (GetKey(p.c.r).bHeld) {
+				p.dx = moveSpeed * fElapsedTime;
+			}
+			if (GetKey(p.c.u).bHeld) {
+				p.dy = -moveSpeed * fElapsedTime;
+			}
+			if (GetKey(p.c.d).bHeld) {
+				p.dy = moveSpeed * fElapsedTime;
+			}
+		}
+		else {
+			if (follow) {
+				if (GetKey(p.c.u).bHeld) {
+					p.dy = p.vy*moveSpeed * fElapsedTime;
+					p.dx = p.vx*moveSpeed * fElapsedTime;
+				}
+			}
+			else {
+				if (GetKey(p.c.u).bHeld) {
+					p.dy = p.vy*moveSpeed * fElapsedTime;
+					p.dx = p.vx*moveSpeed * fElapsedTime;
+				}
+				if (GetKey(p.c.d).bHeld) {
+					p.dy = -p.vy*moveSpeed * fElapsedTime;
+					p.dx = -p.vx*moveSpeed * fElapsedTime;
+				}
+				if (GetKey(p.c.r).bHeld) {
+					p.vx = p.vx*cos(stepAngle * moveSpeed * 3 * fElapsedTime) - p.vy*sin(stepAngle * moveSpeed * 3 * fElapsedTime);
+					p.vy = p.vy*cos(stepAngle * moveSpeed * 3 * fElapsedTime) + p.vx*sin(stepAngle * moveSpeed * 3 * fElapsedTime);
+				}
+				if (GetKey(p.c.l).bHeld) {
+					p.vx = p.vx*cos(-stepAngle * moveSpeed * 3 * fElapsedTime) - p.vy*sin(-stepAngle * moveSpeed * 3 * fElapsedTime);
+					p.vy = p.vy*cos(-stepAngle * moveSpeed * 3 * fElapsedTime) + p.vx*sin(-stepAngle * moveSpeed * 3 * fElapsedTime);
+				}
+			}
+		}
+		p.x += p.dx;
+		p.y += p.dy;
+
+		CorrectPlayer(p);
+		LookPlayer(p);
+
+	}
+
+
+	void CorrectPlayer(Player& p) {
 
 		//Limit
 		if (p.x < 0) p.x = 0;
@@ -188,21 +236,23 @@ public:
 		p.color = olc::WHITE;
 		for (int i = 0; i < rects.size(); i++) {
 			float ty = p.y;
-			p.y = prevY;
+			p.y = p.prevY;
 			if (CollidedX(p, rects[i])) {
 				//p.color = olc::RED;
-				p.x = prevX;
+				p.x = p.prevX;
 			}
 			p.y = ty;
 			if (CollidedY(p, rects[i])) {
 				//p.color = olc::RED;
-				p.y = prevY;
+				p.y = p.prevY;
 			}
 		}
 
-		//Get direction based on mouse
-		
+	}
+
+	void LookPlayer(Player& p) {
 		if (follow) {
+			//Get direction of mouse
 			vec2d mouse;
 			mouse.x = GetMouseX();
 			mouse.y = GetMouseY();
@@ -213,32 +263,33 @@ public:
 			p.vy = p.vy / len;
 		}
 		if (rounding) {
+			//Makes it so the lines dont move
 			float angle = atan2(p.vy, p.vx);
 			angle = round(angle / stepAngle)*stepAngle;
 			p.vy = sin(angle);
 			p.vx = cos(angle);
 		}
 		//Vision
-		Clear(olc::BLACK);
-		float fov = 3.14/3; // deg
+		float fov = 3.14 / 3;
 		if (fullCircle) fov = 2 * (3.14 + stepAngle);
 		int l = p.r * 50;
 		if (fullCircle) l *= 1.5;
 		vec2d pp;//Previous point
 		pp.x = p.x; pp.y = p.y;
-		for (float i = -fov/2; i < fov/2; i+=stepAngle) {
+		for (float i = -fov / 2; i < fov / 2; i += stepAngle) {
+			//Getting the current point
 			vec2d p1;
-			p1.x = p.x+l*(p.vx*cos(i) - p.vy*sin(i));
-			p1.y = p.y+l*(p.vx*sin(i) + p.vy*cos(i));
-			//Draw(p1.x, p1.y);
+			p1.x = p.x + l * (p.vx*cos(i) - p.vy*sin(i));
+			p1.y = p.y + l * (p.vx*sin(i) + p.vy*cos(i));
+			//Intersecting with rectangles
 			vec2d p2; p2.x = p.x; p2.y = p.y;
 			for (int i = 0; i < rects.size(); i++) {
-				vec2d v1 = Intersect(p1, p2, rects[i]);
+				vec2d v1 = Intersect(p1, p2, rects[i], p);
 				if (v1.x != -1 && v1.y != -1) {
 					p1.x = v1.x; p1.y = v1.y;
 				}
 			}
-			//std::cout << p1.x << " " << p1.y << std::endl;
+			//Draw The View Cone
 			if (wireframe) {
 				DrawLine(p.x, p.y, p1.x, p1.y);
 			}
@@ -247,26 +298,20 @@ public:
 			}
 			pp.x = p1.x; pp.y = p1.y;
 		}
-
-		//Draw
-		for (int i = 0; i < rects.size(); i++) {
-			FillRect(rects[i].x, rects[i].y, rects[i].w, rects[i].h, rects[i].color);
-		}
-		FillCircle(p.x, p.y, p.r, p.color);
-		FillTriangle(p.x+p.vx*p.r*2, p.y+p.vy*p.r*2, p.x-p.vy*p.r, p.y+p.vx*p.r, p.x+p.vy*p.r, p.y-p.vx*p.r, p.color);
-		DrawLine(p.x, p.y, p.x+p.r*2*p.vx, p.y+p.r*2*p.vy);
-		if (pressed) {
-			FillRect(round((GetMouseX() - w / 2) / w)*w, round((GetMouseY() - h / 2) / h)*h, w, h, olc::BLUE);
-		}
-		//UI
-		DrawString(5, 5,  "WireFrame (E):         " + boolText(wireframe), selected == 0 ? olc::RED : olc::WHITE);
-		DrawString(5, 15, "Snap lines (R):        " + boolText(rounding), selected == 1 ? olc::RED : olc::WHITE);
-		DrawString(5, 25, "Follow mouse (F):      " + boolText(follow), selected == 2 ? olc::RED : olc::WHITE);
-		DrawString(5, 35, "Absolute movement (Q): " + boolText(absolute), selected == 3 ? olc::RED : olc::WHITE);
-		DrawString(5, 45, "Full circle (G):       " + boolText(fullCircle), selected == 4 ? olc::RED : olc::WHITE);
-		return true;
 	}
 
+	void DrawPlayer(Player& p) {
+		//Body
+		FillCircle(p.x, p.y, p.r, p.color);
+		FillTriangle(p.x + p.vx*p.r * 2, p.y + p.vy*p.r * 2, p.x - p.vy*p.r, p.y + p.vx*p.r, p.x + p.vy*p.r, p.y - p.vx*p.r, p.color);
+		//Direction line
+		DrawLine(p.x, p.y, p.x + p.r * 2 * p.vx, p.y + p.r * 2 * p.vy);
+	}
+
+
+
+
+	//Utility functions
 	std::string boolText(bool a) {
 		return a ? "On" : "Off";
 	}
@@ -280,6 +325,7 @@ public:
 		case 4: fullCircle = !fullCircle; break;
 		}
 	}
+	
 	bool Collided(Player a, Rect b) {
 		if (a.x - a.r < b.x + b.w && a.x + a.r > b.x && a.y - a.r < b.y + b.h && a.y + a.r > b.y) {
 			return true;
@@ -326,7 +372,7 @@ public:
 		}
 		return res;
 	}
-	vec2d Intersect(vec2d v1, vec2d v2, Rect r) {
+	vec2d Intersect(vec2d v1, vec2d v2, Rect r, Player p) {
 		vec2d a, b, c, d;
 		a.x = r.x; a.y = r.y;
 		b.x = r.x; b.y = r.y + r.h;
